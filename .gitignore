@@ -1,0 +1,8 @@
+# Compiled output
+ls
+*.o
+
+# Editor / OS artifacts
+.DS_Store
+*.swp
+*~
