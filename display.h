@@ -12,9 +12,10 @@ void list_directory(const char *path, int print_header);
 
 /*
  * list_entries - display an array of FileEntry pointers.
+ * is_dir: non-zero when displaying directory contents (prints "total" line).
  * Handles -i, -s, -l/-n, -F prefixes/suffixes.
  */
-void list_entries(FileEntry **entries, int count);
+void list_entries(FileEntry **entries, int count, int is_dir);
 
 /*
  * list_single - stat and display a single non-directory operand.

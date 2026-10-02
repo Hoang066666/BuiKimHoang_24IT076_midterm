@@ -36,7 +36,8 @@ typedef struct {
     struct stat  st;        /* stat info */
 } FileEntry;
 
-/* ───── Global options instance ───── */
+/* ───── Global options instance & exit status ───── */
 extern Options g_opts;
+extern int     g_exit_status;
 
 #endif /* LS_H */

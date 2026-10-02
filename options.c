@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "options.h"
 
 Options g_opts;
+int     g_exit_status = 0;
 
 int parse_options(int argc, char *argv[])
 {
@@ -25,8 +27,8 @@ int parse_options(int argc, char *argv[])
         const char *p = argv[i] + 1;
         while (*p) {
             switch (*p) {
-            case 'A': g_opts.opt_A = 1; break;
-            case 'a': g_opts.opt_a = 1; break;
+            case 'A': g_opts.opt_A = 1; g_opts.opt_a = 0; break;
+            case 'a': g_opts.opt_a = 1; g_opts.opt_A = 0; break;
             case 'c': g_opts.opt_c = 1; g_opts.opt_u = 0; break;
             case 'd': g_opts.opt_d = 1; g_opts.opt_R = 0; break;
             case 'F': g_opts.opt_F = 1; break;
@@ -54,8 +56,14 @@ int parse_options(int argc, char *argv[])
     }
 
     /* -f implies -a, disables sort */
-    if (g_opts.opt_f)
+    if (g_opts.opt_f) {
         g_opts.opt_a = 1;
+        g_opts.opt_A = 0;
+    }
+
+    /* -A is always set for the super-user unless -a is specified */
+    if (geteuid() == 0 && !g_opts.opt_a)
+        g_opts.opt_A = 1;
 
     return i; /* index of first non-option arg */
 }

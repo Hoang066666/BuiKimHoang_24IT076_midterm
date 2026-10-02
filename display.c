@@ -7,6 +7,9 @@
 #include <grp.h>
 #include <time.h>
 #include <sys/types.h>
+#if defined(__linux__) || defined(__gnu_linux__)
+#include <sys/sysmacros.h>
+#endif
 #include <dirent.h>
 #include "display.h"
 #include "fileinfo.h"
@@ -84,6 +87,11 @@ static void print_long(const FileEntry *e)
 
     print_name(e->name);
 
+    if (g_opts.opt_F) {
+        char ind = type_indicator(e);
+        if (ind) putchar(ind);
+    }
+
     /* symlink target */
     if (S_ISLNK(e->st.st_mode)) {
         char target[1024];
@@ -97,15 +105,30 @@ static void print_long(const FileEntry *e)
 }
 
 /* ───── list_entries ───── */
-void list_entries(FileEntry **entries, int count)
+void list_entries(FileEntry **entries, int count, int is_dir)
 {
     /* total blocks line for -l/-s when output is listing a directory */
-    if ((g_opts.opt_l || g_opts.opt_n || g_opts.opt_s) && count > 0) {
-        long total = 0;
+    if (is_dir && (g_opts.opt_l || g_opts.opt_n || g_opts.opt_s) && count > 0) {
+        long blksz = 512;
+        if (g_opts.opt_k) {
+            blksz = 1024;
+        } else {
+            char *bs = getenv("BLOCKSIZE");
+            if (bs && *bs) blksz = atol(bs);
+            if (blksz <= 0) blksz = 512;
+        }
+        long long total_bytes = 0;
         for (int i = 0; i < count; i++)
-            total += (long)entries[i]->st.st_blocks;
-        /* st_blocks in 512-byte units; display in 512-byte units */
-        printf("total %ld\n", total / (g_opts.opt_k ? 2 : 1));
+            total_bytes += (long long)entries[i]->st.st_blocks * 512;
+
+        if (g_opts.opt_h) {
+            char buf[16];
+            human_size(total_bytes, buf, sizeof(buf));
+            printf("total %s\n", buf);
+        } else {
+            long total_blocks = (total_bytes + blksz - 1) / blksz;
+            printf("total %ld\n", total_blocks);
+        }
     }
 
     for (int i = 0; i < count; i++) {
@@ -131,6 +154,7 @@ void list_directory(const char *path, int print_header)
     DIR *dir = opendir(path);
     if (!dir) {
         fprintf(stderr, "ls: %s: %s\n", path, strerror(errno));
+        g_exit_status = 1;
         return;
     }
 
@@ -154,6 +178,7 @@ void list_directory(const char *path, int print_header)
         FileEntry *e = make_entry(path, name);
         if (!e) {
             fprintf(stderr, "ls: %s/%s: %s\n", path, name, strerror(errno));
+            g_exit_status = 1;
             continue;
         }
 
@@ -172,7 +197,7 @@ void list_directory(const char *path, int print_header)
     if (print_header)
         printf("%s:\n", path);
 
-    list_entries(entries, count);
+    list_entries(entries, count, 1);
 
     /* -R: recurse into subdirectories */
     if (g_opts.opt_R) {
@@ -199,6 +224,7 @@ void list_single(const char *path)
     FileEntry *e = make_entry("", path);
     if (!e) {
         fprintf(stderr, "ls: %s: %s\n", path, strerror(errno));
+        g_exit_status = 1;
         return;
     }
     /* fix up name to basename */
@@ -206,16 +232,6 @@ void list_single(const char *path)
     free(e->name);
     e->name = strdup(slash ? slash + 1 : path);
 
-    print_prefix(e);
-    if (g_opts.opt_l || g_opts.opt_n)
-        print_long(e);
-    else {
-        print_name(e->name);
-        if (g_opts.opt_F) {
-            char ind = type_indicator(e);
-            if (ind) putchar(ind);
-        }
-        putchar('\n');
-    }
+    list_entries(&e, 1, 0);
     free_entry(e);
 }
